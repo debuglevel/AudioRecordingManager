@@ -19,6 +19,7 @@ It defines ${classes_and_methods}
 
 import sys
 import os
+import subprocess
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -79,6 +80,8 @@ USAGE
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
 #        parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE" )
 #        parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE" )
+        parser.add_argument("-c", "--compress", dest="compress", action="store_true", help="compress audio files into archive")
+        parser.add_argument("-d", "--decompress", dest="decompress", action="store_true", help="decompress audio files from archive")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='+')
         
@@ -87,6 +90,8 @@ USAGE
         
         paths = args.paths
         verbose = args.verbose
+        decompress = args.decompress
+        compress = args.compress
         #recurse = args.recurse
         #inpat = args.include
         #expat = args.exclude
@@ -101,9 +106,26 @@ USAGE
 #        if inpat and expat and inpat == expat:
 #            raise CLIError("include and exclude pattern are equal! Nothing will be processed.")
         
+        if compress and decompress:
+            raise CLIError("compressing and decompressing are mutually exclusive arguments")
+        
         for inpath in paths:
             log("Processing "+inpath)
+            archive = inpath+"/"+inpath+".tar.bz2"
+            audacity_base = inpath+"/"+inpath 
             
+            if compress:
+                if os.path.isfile(archive):
+                    raise CLIError(archive + " does already exist. Will not overwrite existing files.")
+                #output = subprocess.check_output(["7z", "a", archive, audacity_base+"_data"])
+                output = subprocess.check_output(["tar", "-cvjf", archive, audacity_base+"_data"])
+            elif decompress:
+                if os.path.isdir(audacity_base+"_data"):
+                    raise CLIError(audacity_base+"_data" + " does already exist. Will not overwrite existing files.")
+                #output = subprocess.check_output(["7z", "x", archive, audacity_base+"_data"])
+                output = subprocess.check_output(["tar", "xvjf", archive, audacity_base+"_data"])
+                
+            log(output)
             
         return 0
     except KeyboardInterrupt:
