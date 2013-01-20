@@ -20,6 +20,7 @@ It defines ${classes_and_methods}
 import sys
 import os
 import subprocess
+import shutil
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -116,16 +117,32 @@ USAGE
             verbose_arg = "v" if verbose else ""
             
             if compress:
+                if os.path.isdir(audacity_data) == False:
+                    raise CLIError("audio data directory " + audacity_data + " does not exist.")
+                
                 if os.path.isfile(archive):
-                    raise CLIError(archive + " does already exist. Will not overwrite existing files.")
+                    raise CLIError("audio archive " + archive + " does already exist. Will not overwrite existing files.")
+                
+                log(" Compressing")
                 output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
                 log(output)
                 
+                log(" Deleting")
+                shutil.rmtree(audacity_data)
+                
             elif decompress:
+                if os.path.isfile(archive) == False:
+                    raise CLIError("audio archive " + archive + " does not exist.")
+                
                 if os.path.isdir(audacity_data):
-                    raise CLIError(audacity_data + " does already exist. Will not overwrite existing files.")
+                    raise CLIError("audio data directory " + audacity_data + " does already exist. Will not overwrite existing files.")
+                
+                log(" Decompressing")
                 output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
                 log(output)
+                
+                log(" Deleting")
+                os.remove(archive)
             
             
         return 0
