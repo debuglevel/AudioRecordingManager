@@ -112,20 +112,21 @@ USAGE
         for inpath in paths:
             log("Processing "+inpath)
             archive = inpath+"/"+inpath+".tar.bz2"
-            audacity_base = inpath+"/"+inpath 
+            audacity_data = inpath+"/"+inpath+"_data"
+            verbose_arg = "v" if verbose else ""
             
             if compress:
                 if os.path.isfile(archive):
                     raise CLIError(archive + " does already exist. Will not overwrite existing files.")
-                #output = subprocess.check_output(["7z", "a", archive, audacity_base+"_data"])
-                output = subprocess.check_output(["tar", "-cvjf", archive, audacity_base+"_data"])
-            elif decompress:
-                if os.path.isdir(audacity_base+"_data"):
-                    raise CLIError(audacity_base+"_data" + " does already exist. Will not overwrite existing files.")
-                #output = subprocess.check_output(["7z", "x", archive, audacity_base+"_data"])
-                output = subprocess.check_output(["tar", "xvjf", archive, audacity_base+"_data"])
+                output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
+                log(output)
                 
-            log(output)
+            elif decompress:
+                if os.path.isdir(audacity_data):
+                    raise CLIError(audacity_data + " does already exist. Will not overwrite existing files.")
+                output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
+                log(output)
+            
             
         return 0
     except KeyboardInterrupt:
