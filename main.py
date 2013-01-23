@@ -47,6 +47,54 @@ class CLIError(Exception):
 def log(msg):
     print(msg)
 
+def compress(args):
+    for path in args.projects:
+        log("Processing "+path)
+        archive = path+"/"+path+".tar.bz2"
+        audacity_data = path+"/"+path+"_data"
+        verbose_arg = "v" if args.verbose else ""
+        
+        if os.path.isdir(audacity_data) == False:
+            raise CLIError("audio data directory " + audacity_data + " does not exist.")
+        
+        if os.path.isfile(archive):
+            raise CLIError("audio archive " + archive + " does already exist. Will not overwrite existing files.")
+        
+        log(" Compressing")
+        output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
+        log(output)
+        
+        log(" Deleting old data")
+        shutil.rmtree(audacity_data)
+    
+def decompress(args):
+    for path in args.projects:
+        log("Processing "+path)
+        archive = path+"/"+path+".tar.bz2"
+        audacity_data = path+"/"+path+"_data"
+        verbose_arg = "v" if args.verbose else ""
+        
+        if os.path.isfile(archive) == False:
+            raise CLIError("audio archive " + archive + " does not exist.")
+        
+        if os.path.isdir(audacity_data):
+            raise CLIError("audio data directory " + audacity_data + " does already exist. Will not overwrite existing files.")
+        
+        log(" Decompressing")
+        output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
+        log(output)
+        
+        log(" Deleting old data")
+        os.remove(archive)
+    
+def open(args):
+    for path in args.projects:
+        log("Processing "+path)
+        audacity_project = path+"/"+path+".aup"
+        
+        log(" Open")
+        subprocess.Popen(["audacity", audacity_project])
+
 def main(argv=None): # IGNORE:C0111
     '''Command line options.'''
     
@@ -77,81 +125,28 @@ USAGE
     try:
         # Setup argument parser
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
-#        parser.add_argument("-r", "--recursive", dest="recurse", action="store_true", help="recurse into subfolders [default: %(default)s]")
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
-#        parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE" )
-#        parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE" )
-        parser.add_argument("-c", "--compress", dest="compress", action="store_true", help="compress audio files into archive")
-        parser.add_argument("-d", "--decompress", dest="decompress", action="store_true", help="decompress audio files from archive")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument("-o", "--open", dest="open", action="store_true", help="open audio project using audacity")
-        parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='+')
         
-        # Process arguments
+        subparsers = parser.add_subparsers(title='commands',
+                                           description='available commands to process projects')
+        
+        subparser = {}
+        subparser['open'] = subparsers.add_parser('open', help='open audio project using audacity')
+        subparser['open'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['open'].set_defaults(func=open)
+        
+        subparser['compress'] = subparsers.add_parser('compress', help='compress audio files into archive')
+        subparser['compress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['compress'].set_defaults(func=compress)
+        
+        subparser['decompress'] = subparsers.add_parser('decompress', help='decompress audio files from archive')
+        subparser['decompress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['decompress'].set_defaults(func=decompress)
+
         args = parser.parse_args()
-        
-        paths = args.paths
-        verbose = args.verbose
-        decompress = args.decompress
-        compress = args.compress
-        open = args.open
-        #recurse = args.recurse
-        #inpat = args.include
-        #expat = args.exclude
-        
-#        if verbose > 0:
-#            print("Verbose mode on")
-#            if recurse:
-#                print("Recursive mode on")
-#            else:
-#                print("Recursive mode off")
-        
-#        if inpat and expat and inpat == expat:
-#            raise CLIError("include and exclude pattern are equal! Nothing will be processed.")
-        
-        if compress and decompress:
-            raise CLIError("compressing and decompressing are mutually exclusive arguments")
-        
-        for inpath in paths:
-            log("Processing "+inpath)
-            archive = inpath+"/"+inpath+".tar.bz2"
-            audacity_data = inpath+"/"+inpath+"_data"
-            audacity_project = inpath+"/"+inpath+".aup"
-            verbose_arg = "v" if verbose else ""
-            
-            if compress:
-                if os.path.isdir(audacity_data) == False:
-                    raise CLIError("audio data directory " + audacity_data + " does not exist.")
-                
-                if os.path.isfile(archive):
-                    raise CLIError("audio archive " + archive + " does already exist. Will not overwrite existing files.")
-                
-                log(" Compressing")
-                output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
-                log(output)
-                
-                log(" Deleting")
-                shutil.rmtree(audacity_data)
-                
-            elif decompress:
-                if os.path.isfile(archive) == False:
-                    raise CLIError("audio archive " + archive + " does not exist.")
-                
-                if os.path.isdir(audacity_data):
-                    raise CLIError("audio data directory " + audacity_data + " does already exist. Will not overwrite existing files.")
-                
-                log(" Decompressing")
-                output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
-                log(output)
-                
-                log(" Deleting")
-                os.remove(archive)
-                
-            if open:
-                log(" Open")
-                subprocess.Popen(["audacity", audacity_project])
-            
-            
+        args.func(args)
+   
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
@@ -166,8 +161,9 @@ USAGE
 
 if __name__ == "__main__":
     if DEBUG:
+        None
         #sys.argv.append("-h")
-        sys.argv.append("-v")
+        #sys.argv.append("-v")
 #        sys.argv.append("-r")
     if TESTRUN:
         import doctest
