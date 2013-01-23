@@ -84,6 +84,7 @@ USAGE
         parser.add_argument("-c", "--compress", dest="compress", action="store_true", help="compress audio files into archive")
         parser.add_argument("-d", "--decompress", dest="decompress", action="store_true", help="decompress audio files from archive")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        parser.add_argument("-o", "--open", dest="open", action="store_true", help="open audio project using audacity")
         parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='+')
         
         # Process arguments
@@ -93,6 +94,7 @@ USAGE
         verbose = args.verbose
         decompress = args.decompress
         compress = args.compress
+        open = args.open
         #recurse = args.recurse
         #inpat = args.include
         #expat = args.exclude
@@ -114,6 +116,7 @@ USAGE
             log("Processing "+inpath)
             archive = inpath+"/"+inpath+".tar.bz2"
             audacity_data = inpath+"/"+inpath+"_data"
+            audacity_project = inpath+"/"+inpath+".aup"
             verbose_arg = "v" if verbose else ""
             
             if compress:
@@ -143,6 +146,10 @@ USAGE
                 
                 log(" Deleting")
                 os.remove(archive)
+                
+            if open:
+                log(" Open")
+                subprocess.Popen(["audacity", audacity_project])
             
             
         return 0
