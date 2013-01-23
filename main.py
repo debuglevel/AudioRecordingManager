@@ -1,21 +1,4 @@
-#!/usr/local/bin/python2.7
-# encoding: utf-8
-'''
-${module} -- ${shortdesc}
-
-${module} is a ${description}
-
-It defines ${classes_and_methods}
-
-@author:     ${user_name}
-        
-@copyright:  ${year} ${organization_name}. All rights reserved.
-        
-@license:    ${license}
-
-@contact:    ${user_email}
-@deffield    updated: Updated
-'''
+#!/usr/bin/python2.7
 
 import sys
 import os
@@ -27,8 +10,7 @@ from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
 __version__ = 0.1
-__date__ = '${isodate}'
-__updated__ = '${isodate}'
+__updated__ = '2013-01-23'
 
 DEBUG = 1
 TESTRUN = 0
@@ -107,24 +89,11 @@ def main(argv=None): # IGNORE:C0111
     program_version = "v%s" % __version__
     program_build_date = str(__updated__)
     program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
-    program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
-    program_license = '''%s
-
-  Created by ${user_name} on %s.
-  Copyright ${year} ${organization_name}. All rights reserved.
-  
-  Licensed under the Apache License 2.0
-  http://www.apache.org/licenses/LICENSE-2.0
-  
-  Distributed on an "AS IS" basis without warranties
-  or conditions of any kind, either express or implied.
-
-USAGE
-''' % (program_shortdesc, str(__date__))
+    program_shortdesc = "tool to process certain actions on audacity based audio projects"
 
     try:
         # Setup argument parser
-        parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
+        parser = ArgumentParser(description=program_shortdesc, formatter_class=RawDescriptionHelpFormatter)
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         
@@ -162,9 +131,7 @@ USAGE
 if __name__ == "__main__":
     if DEBUG:
         None
-        #sys.argv.append("-h")
         #sys.argv.append("-v")
-#        sys.argv.append("-r")
     if TESTRUN:
         import doctest
         doctest.testmod()
