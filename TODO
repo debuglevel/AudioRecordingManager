@@ -1,0 +1,4 @@
+- add sub-command to decompress-open-compress a project
+-- add option to keep archive-file on decompress
+-- should also work if there is no archive but a data directory
+-- only compress files again if any changes were made (comparison based on mdate)
