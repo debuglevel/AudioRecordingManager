@@ -78,12 +78,22 @@ def decompress_cli(args):
     for path in args.projects:
         log("Processing "+path)
         decompress(path, args.verbose)
+
+def isCompressed(path):
+    archive = path+"/"+path+".tar.bz2"
+    return os.path.exists(archive)
     
 def open(path, verbose):
     audacity_project = path+"/"+path+".aup"
     
+    if isCompressed(path):
+        decompress(path, verbose)
+    
     log(" Open")
-    subprocess.Popen(["audacity", audacity_project])
+    process = subprocess.Popen(["audacity", audacity_project])
+    process.wait() # NOTE: switch to communicate() if wait() blocks the process because of a full pipe
+    
+    compress(path, verbose)
 
 def open_cli(args):
     for path in args.projects:
