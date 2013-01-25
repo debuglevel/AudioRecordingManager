@@ -29,7 +29,7 @@ class CLIError(Exception):
 def log(msg):
     print(msg)
 
-def compress(path, verbose):
+def compress(path, verbose, overwrite = False):
     log("Compress "+path)
     
     archive = path+"/"+path+".tar.bz2"
@@ -39,8 +39,11 @@ def compress(path, verbose):
     if os.path.isdir(audacity_data) == False:
         raise CLIError("audio data directory " + audacity_data + " does not exist.")
     
-    if os.path.isfile(archive):
+    if os.path.isfile(archive) and overwrite is False:
         raise CLIError("audio archive " + archive + " does already exist. Will not overwrite existing files.")
+    elif os.path.isfile(archive) and overwrite is True:
+        log(" Deleting old existing archive")
+        os.remove(archive)
     
     log(" Compressing")
     output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
@@ -54,7 +57,7 @@ def compress_cli(args):
         log("Processing "+path)
         compress(path, args.verbose)
 
-def decompress(path, verbose):
+def decompress(path, verbose, keep = False):
     log("Decompress "+path)
     
     archive = path+"/"+path+".tar.bz2"
@@ -71,8 +74,9 @@ def decompress(path, verbose):
     output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
     log(output)
     
-    log(" Deleting old data")
-    os.remove(archive)
+    if (keep is False):
+        log(" Deleting old data")
+        os.remove(archive)
     
 def decompress_cli(args):
     for path in args.projects:
@@ -82,18 +86,41 @@ def decompress_cli(args):
 def isCompressed(path):
     archive = path+"/"+path+".tar.bz2"
     return os.path.exists(archive)
+
+def getArchiveDate(archive):
+    return os.path.getmtime(archive)
+
+def getDataDate(dataDirectory):
+    fileList = []
     
+    for root, subFolders, files in os.walk(dataDirectory):
+        files = filter(lambda x: not os.path.isdir(x), files)
+        for file in files:
+            fileList.append(root + "/" + file)
+        
+    newest = max(fileList, key=lambda x: os.stat(x).st_mtime)
+        
+    return os.stat(newest).st_mtime
+        
+
 def open(path, verbose):
     audacity_project = path+"/"+path+".aup"
+    audacity_data = path+"/"+path+"_data"
+    archive = path+"/"+path+".tar.bz2"
     
     if isCompressed(path):
-        decompress(path, verbose)
+        decompress(path, verbose, keep=True)
     
     log(" Open")
     process = subprocess.Popen(["audacity", audacity_project])
     process.wait() # NOTE: switch to communicate() if wait() blocks the process because of a full pipe
     
-    compress(path, verbose)
+    if getDataDate(audacity_data) > getArchiveDate(archive):
+        log(" Compress changed data files")
+        compress(path, verbose, overwrite=True)
+    else:
+        log(" Deleting unchanged data files")
+        shutil.rmtree(audacity_data)
 
 def open_cli(args):
     for path in args.projects:
