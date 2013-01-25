@@ -29,53 +29,66 @@ class CLIError(Exception):
 def log(msg):
     print(msg)
 
-def compress(args):
-    for path in args.projects:
-        log("Processing "+path)
-        archive = path+"/"+path+".tar.bz2"
-        audacity_data = path+"/"+path+"_data"
-        verbose_arg = "v" if args.verbose else ""
-        
-        if os.path.isdir(audacity_data) == False:
-            raise CLIError("audio data directory " + audacity_data + " does not exist.")
-        
-        if os.path.isfile(archive):
-            raise CLIError("audio archive " + archive + " does already exist. Will not overwrite existing files.")
-        
-        log(" Compressing")
-        output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
-        log(output)
-        
-        log(" Deleting old data")
-        shutil.rmtree(audacity_data)
+def compress(path, verbose):
+    log("Compress "+path)
     
-def decompress(args):
-    for path in args.projects:
-        log("Processing "+path)
-        archive = path+"/"+path+".tar.bz2"
-        audacity_data = path+"/"+path+"_data"
-        verbose_arg = "v" if args.verbose else ""
-        
-        if os.path.isfile(archive) == False:
-            raise CLIError("audio archive " + archive + " does not exist.")
-        
-        if os.path.isdir(audacity_data):
-            raise CLIError("audio data directory " + audacity_data + " does already exist. Will not overwrite existing files.")
-        
-        log(" Decompressing")
-        output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
-        log(output)
-        
-        log(" Deleting old data")
-        os.remove(archive)
+    archive = path+"/"+path+".tar.bz2"
+    audacity_data = path+"/"+path+"_data"
+    verbose_arg = "v" if verbose else ""
     
-def open(args):
+    if os.path.isdir(audacity_data) == False:
+        raise CLIError("audio data directory " + audacity_data + " does not exist.")
+    
+    if os.path.isfile(archive):
+        raise CLIError("audio archive " + archive + " does already exist. Will not overwrite existing files.")
+    
+    log(" Compressing")
+    output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
+    log(output)
+    
+    log(" Deleting old data")
+    shutil.rmtree(audacity_data)
+
+def compress_cli(args):
     for path in args.projects:
         log("Processing "+path)
-        audacity_project = path+"/"+path+".aup"
-        
-        log(" Open")
-        subprocess.Popen(["audacity", audacity_project])
+        compress(path, args.verbose)
+
+def decompress(path, verbose):
+    log("Decompress "+path)
+    
+    archive = path+"/"+path+".tar.bz2"
+    audacity_data = path+"/"+path+"_data"
+    verbose_arg = "v" if verbose else ""
+    
+    if os.path.isfile(archive) == False:
+        raise CLIError("audio archive " + archive + " does not exist.")
+    
+    if os.path.isdir(audacity_data):
+        raise CLIError("audio data directory " + audacity_data + " does already exist. Will not overwrite existing files.")
+    
+    log(" Decompressing")
+    output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
+    log(output)
+    
+    log(" Deleting old data")
+    os.remove(archive)
+    
+def decompress_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        decompress(path, args.verbose)
+    
+def open(path, verbose):
+    audacity_project = path+"/"+path+".aup"
+    
+    log(" Open")
+    subprocess.Popen(["audacity", audacity_project])
+
+def open_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        open(path, args.verbose)
 
 def main(argv=None): # IGNORE:C0111
     '''Command line options.'''
@@ -101,17 +114,17 @@ def main(argv=None): # IGNORE:C0111
                                            description='available commands to process projects')
         
         subparser = {}
-        subparser['open'] = subparsers.add_parser('open', help='open audio project using audacity')
-        subparser['open'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['open'].set_defaults(func=open)
+        subparser['open_cli'] = subparsers.add_parser('open', help='open audio project using audacity')
+        subparser['open_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['open_cli'].set_defaults(func=open_cli)
         
-        subparser['compress'] = subparsers.add_parser('compress', help='compress audio files into archive')
-        subparser['compress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['compress'].set_defaults(func=compress)
+        subparser['compress_cli'] = subparsers.add_parser('compress', help='compress audio files into archive')
+        subparser['compress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['compress_cli'].set_defaults(func=compress_cli)
         
-        subparser['decompress'] = subparsers.add_parser('decompress', help='decompress audio files from archive')
-        subparser['decompress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['decompress'].set_defaults(func=decompress)
+        subparser['decompress_cli'] = subparsers.add_parser('decompress', help='decompress audio files from archive')
+        subparser['decompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['decompress_cli'].set_defaults(func=decompress_cli)
 
         args = parser.parse_args()
         args.func(args)
@@ -140,7 +153,7 @@ if __name__ == "__main__":
         import pstats
         profile_filename = '${module}_profile.txt'
         cProfile.run('main()', profile_filename)
-        statsfile = open("profile_stats.txt", "wb")
+        statsfile = open_cli("profile_stats.txt", "wb")
         p = pstats.Stats(profile_filename, stream=statsfile)
         stats = p.strip_dirs().sort_stats('cumulative')
         stats.print_stats()
