@@ -1,4 +1,5 @@
-- add sub-command to decompress-open-compress a project
--- add option to keep archive-file on decompress
--- should also work if there is no archive but a data directory
--- only compress files again if any changes were made (comparison based on mdate)
+- change (de)compression to be based on single files instead of the whole data directory
+-- on compress:
+-- only compress changed .au files (compare mdate) (or those which have no matching .au.bz2 files)
+-- delete unchanged .au files (and keep existing .au.bz2 files)
+-- delete .au.bz2 files which have no matching .au file
