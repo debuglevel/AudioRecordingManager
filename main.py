@@ -52,10 +52,48 @@ def compress(path, verbose, overwrite = False):
     log(" Deleting old data")
     shutil.rmtree(audacity_data)
 
+def finecompress(path, verbose, overwrite = False):
+    log("FineCompress "+path)
+    
+    audacity_data = path+"/"+path+"_data"
+    verbose_arg = "v" if verbose else ""
+    
+    log("Deleting .bz2 files with no matching .au files")
+    for compressedfile in filter(lambda x: x.endswith(".bz2"), getFilelist(audacity_data)):
+        audiofile = os.path.splitext(compressedfile)[0]
+
+        if not os.path.exists(audiofile):
+            log(compressedfile + " should match " + audiofile + " but does not exist anymore. Deleting.")
+            os.remove(compressedfile)
+    
+    log("Compressing modified audio files")
+    for audiofile in filter(lambda x: x.endswith(".au"), getFilelist(audacity_data)):     
+        compressedfile=audiofile+".bz2"
+        if not os.path.exists(compressedfile) or getFileDate(audiofile) > getFileDate(compressedfile):
+            log("Compress "+audiofile)
+            output = subprocess.check_output(["bzip2", "-zf"+verbose_arg, audiofile])
+        else:
+            os.remove(audiofile)
+
+def getFilelist(directory):
+    fileList = []
+    
+    for root, subFolders, files in os.walk(directory):
+        files = filter(lambda x: not os.path.isdir(x), files)
+        for file in files:
+            fileList.append(root + "/" + file)
+            
+    return fileList
+
 def compress_cli(args):
     for path in args.projects:
         log("Processing "+path)
         compress(path, args.verbose)
+
+def finecompress_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        finecompress(path, args.verbose)
 
 def decompress(path, verbose, keep = False):
     log("Decompress "+path)
@@ -83,12 +121,35 @@ def decompress_cli(args):
         log("Processing "+path)
         decompress(path, args.verbose)
 
+def finedecompress(path, verbose, overwrite = False):
+    log("FineDecompress "+path)
+    
+    audacity_data = path+"/"+path+"_data"
+    verbose_arg = "v" if verbose else ""
+    
+    filelist = getFilelist(audacity_data)
+    if any(s.endswith(".au") for s in filelist):
+        raise CLIError("existing .au file found during decompress")    
+    
+    log("Decompressing files")
+    for compressedfile in filter(lambda x: x.endswith(".bz2"), filelist):
+        log("Decompress "+compressedfile)
+        output = subprocess.check_output(["bzip2", "-dk"+verbose_arg, compressedfile])
+
+def finedecompress_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        finedecompress(path, args.verbose)
+
 def isCompressed(path):
     archive = path+"/"+path+".tar.bz2"
     return os.path.exists(archive)
 
 def getArchiveDate(archive):
     return os.path.getmtime(archive)
+
+def getFileDate(file):
+    return os.stat(file).st_mtime
 
 def getDataDate(dataDirectory):
     fileList = []
@@ -162,6 +223,15 @@ def main(argv=None): # IGNORE:C0111
         subparser['decompress_cli'] = subparsers.add_parser('decompress', help='decompress audio files from archive')
         subparser['decompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
         subparser['decompress_cli'].set_defaults(func=decompress_cli)
+
+        subparser['finecompress_cli'] = subparsers.add_parser('finecompress', help='compress audio files into archive')
+        subparser['finecompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['finecompress_cli'].set_defaults(func=finecompress_cli)
+        
+        subparser['finedecompress_cli'] = subparsers.add_parser('finedecompress', help='decompress audio files from archive')
+        subparser['finedecompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['finedecompress_cli'].set_defaults(func=finedecompress_cli)
+
 
         args = parser.parse_args()
         args.func(args)
