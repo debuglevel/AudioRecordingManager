@@ -4,6 +4,10 @@ import sys
 import os
 import subprocess
 import shutil
+import json
+import tempfile
+import pprint
+import datetime
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -28,6 +32,65 @@ class CLIError(Exception):
 
 def log(msg):
     print(msg)
+
+def test(path):
+    None
+#    dict = {}
+#    dict["title"] = "frau holle"
+#    dict["isFoo"] = True
+#    dict["isBar"] = False
+#
+#    saveAnnotations(path, dict)
+
+def saveAnnotations(path, dict):
+    filename = path+"/"+path+".json"
+    file = open(filename, mode='w')
+    json.dump(dict, file)
+    #file.flush()
+
+def getAnnotations(path):
+    jsonfile = path+"/"+path+".json"
+    if os.path.exists(jsonfile):
+        json_data=open(jsonfile)
+        data = json.load(json_data)
+        json_data.close()
+    else:
+        data = {}
+    
+    return data
+
+def printMetadata(path):
+    audacity_projectfile = path+"/"+path+".aup"
+    print "Project creation:     \t" + str(datetime.datetime.fromtimestamp(os.stat(audacity_projectfile).st_ctime))
+    print "Project last modified:\t" + str(datetime.datetime.fromtimestamp(os.stat(audacity_projectfile).st_mtime))
+    for key, value in getAnnotations(path).iteritems():
+        print "%s:\t\t%s" % (key, value)
+
+def getMetadata(path, key):
+    audacity_projectfile = path+"/"+path+".aup"
+    annotations = getAnnotations(path)
+    print "%s: %s" % (key, annotations[key])
+
+def setMetadata(path, key, value):
+    jsonfile = path+"/"+path+".json"
+    annotations = getAnnotations(path)
+    annotations[key] = value
+    saveAnnotations(path, annotations)
+    
+def printMetadata_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        printMetadata(path)
+
+def getMetadata_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        getMetadata(path, args.key)
+        
+def setMetadata_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        setMetadata(path, args.key, args.value)
 
 def compress(path, verbose, overwrite = False):
     log("Compress "+path)
@@ -89,6 +152,11 @@ def compress_cli(args):
     for path in args.projects:
         log("Processing "+path)
         compress(path, args.verbose)
+        
+def test_cli(args):
+    for path in args.projects:
+        log("Processing "+path)
+        test(path)
 
 def finecompress_cli(args):
     for path in args.projects:
@@ -164,7 +232,7 @@ def getDataDate(dataDirectory):
     return os.stat(newest).st_mtime
         
 
-def open(path, verbose):
+def openproject(path, verbose):
     audacity_project = path+"/"+path+".aup"
     audacity_data = path+"/"+path+"_data"
     archive = path+"/"+path+".tar.bz2"
@@ -183,10 +251,10 @@ def open(path, verbose):
         log(" Deleting unchanged data files")
         shutil.rmtree(audacity_data)
 
-def open_cli(args):
+def openproject_cli(args):
     for path in args.projects:
         log("Processing "+path)
-        open(path, args.verbose)
+        openproject(path, args.verbose)
 
 def main(argv=None): # IGNORE:C0111
     '''Command line options.'''
@@ -212,9 +280,13 @@ def main(argv=None): # IGNORE:C0111
                                            description='available commands to process projects')
         
         subparser = {}
-        subparser['open_cli'] = subparsers.add_parser('open', help='open audio project using audacity')
-        subparser['open_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['open_cli'].set_defaults(func=open_cli)
+        subparser['openproject_cli'] = subparsers.add_parser('open', help='open audio project using audacity')
+        subparser['openproject_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['openproject_cli'].set_defaults(func=openproject_cli)
+
+        subparser['test_cli'] = subparsers.add_parser('test', help='test function')
+        subparser['test_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['test_cli'].set_defaults(func=test_cli)
         
         subparser['compress_cli'] = subparsers.add_parser('compress', help='compress audio files into archive')
         subparser['compress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
@@ -232,6 +304,20 @@ def main(argv=None): # IGNORE:C0111
         subparser['finedecompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
         subparser['finedecompress_cli'].set_defaults(func=finedecompress_cli)
 
+        subparser['printMetadata_cli'] = subparsers.add_parser('metadata_list', help='print metadata of a project')
+        subparser['printMetadata_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['printMetadata_cli'].set_defaults(func=printMetadata_cli)
+        
+        subparser['setMetadata_cli'] = subparsers.add_parser('metadata_set', help='set metadata of a project')
+        subparser['setMetadata_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['setMetadata_cli'].add_argument(dest="key", help="Key to store", metavar="key")
+        subparser['setMetadata_cli'].add_argument(dest="value", help="Value to store in Key", metavar="value")
+        subparser['setMetadata_cli'].set_defaults(func=setMetadata_cli)
+
+        subparser['getMetadata_cli'] = subparsers.add_parser('metadata_get', help='get metadata of a project')
+        subparser['getMetadata_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['getMetadata_cli'].add_argument(dest="key", help="Key to retrieve", metavar="key")
+        subparser['getMetadata_cli'].set_defaults(func=getMetadata_cli)
 
         args = parser.parse_args()
         args.func(args)
@@ -260,7 +346,7 @@ if __name__ == "__main__":
         import pstats
         profile_filename = '${module}_profile.txt'
         cProfile.run('main()', profile_filename)
-        statsfile = open_cli("profile_stats.txt", "wb")
+        statsfile = openproject_cli("profile_stats.txt", "wb")
         p = pstats.Stats(profile_filename, stream=statsfile)
         stats = p.strip_dirs().sort_stats('cumulative')
         stats.print_stats()
