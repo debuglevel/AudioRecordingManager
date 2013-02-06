@@ -2,12 +2,12 @@
 
 import sys
 import os
-import subprocess
-import shutil
-import json
-import tempfile
-import pprint
 import datetime
+
+from logic.metadata import Metadata
+from logger import Logger
+from logic.compression import Compression
+from logic.open import Open
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -30,311 +30,219 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
-def log(msg):
-    print(msg)
-
-def test(path):
-    None
-#    dict = {}
-#    dict["title"] = "frau holle"
-#    dict["isFoo"] = True
-#    dict["isBar"] = False
-#
-#    saveAnnotations(path, dict)
-
-def saveAnnotations(path, dict):
-    filename = path+"/"+path+".json"
-    file = open(filename, mode='w')
-    json.dump(dict, file)
-    #file.flush()
-
-def getAnnotations(path):
-    jsonfile = path+"/"+path+".json"
-    if os.path.exists(jsonfile):
-        json_data=open(jsonfile)
-        data = json.load(json_data)
-        json_data.close()
-    else:
-        data = {}
-    
-    return data
-
-def printMetadata(path):
-    audacity_projectfile = path+"/"+path+".aup"
-    print "Project creation:     \t" + str(datetime.datetime.fromtimestamp(os.stat(audacity_projectfile).st_ctime))
-    print "Project last modified:\t" + str(datetime.datetime.fromtimestamp(os.stat(audacity_projectfile).st_mtime))
-    for key, value in getAnnotations(path).iteritems():
-        print "%s:\t\t%s" % (key, value)
-
-def getMetadata(path, key):
-    audacity_projectfile = path+"/"+path+".aup"
-    annotations = getAnnotations(path)
-    print "%s: %s" % (key, annotations[key])
-
-def setMetadata(path, key, value):
-    jsonfile = path+"/"+path+".json"
-    annotations = getAnnotations(path)
-    annotations[key] = value
-    saveAnnotations(path, annotations)
-    
-def printMetadata_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        printMetadata(path)
-
-def getMetadata_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        getMetadata(path, args.key)
+class TextInterface:
+    def __init__(self):
+        None
         
-def setMetadata_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        setMetadata(path, args.key, args.value)
-
-def compress(path, verbose, overwrite = False):
-    log("Compress "+path)
-    
-    archive = path+"/"+path+".tar.bz2"
-    audacity_data = path+"/"+path+"_data"
-    verbose_arg = "v" if verbose else ""
-    
-    if os.path.isdir(audacity_data) == False:
-        raise CLIError("audio data directory " + audacity_data + " does not exist.")
-    
-    if os.path.isfile(archive) and overwrite is False:
-        raise CLIError("audio archive " + archive + " does already exist. Will not overwrite existing files.")
-    elif os.path.isfile(archive) and overwrite is True:
-        log(" Deleting old existing archive")
-        os.remove(archive)
-    
-    log(" Compressing")
-    output = subprocess.check_output(["tar", "-cj"+verbose_arg+"f", archive, audacity_data])
-    log(output)
-    
-    log(" Deleting old data")
-    shutil.rmtree(audacity_data)
-
-def finecompress(path, verbose, overwrite = False):
-    log("FineCompress "+path)
-    
-    audacity_data = path+"/"+path+"_data"
-    verbose_arg = "v" if verbose else ""
-    
-    log("Deleting .bz2 files with no matching .au files")
-    for compressedfile in filter(lambda x: x.endswith(".bz2"), getFilelist(audacity_data)):
-        audiofile = os.path.splitext(compressedfile)[0]
-
-        if not os.path.exists(audiofile):
-            log(compressedfile + " should match " + audiofile + " but does not exist anymore. Deleting.")
-            os.remove(compressedfile)
-    
-    log("Compressing modified audio files")
-    for audiofile in filter(lambda x: x.endswith(".au"), getFilelist(audacity_data)):     
-        compressedfile=audiofile+".bz2"
-        if not os.path.exists(compressedfile) or getFileDate(audiofile) > getFileDate(compressedfile):
-            log("Compress "+audiofile)
-            output = subprocess.check_output(["bzip2", "-zf"+verbose_arg, audiofile])
-        else:
-            os.remove(audiofile)
-
-def getFilelist(directory):
-    fileList = []
-    
-    for root, subFolders, files in os.walk(directory):
-        files = filter(lambda x: not os.path.isdir(x), files)
-        for file in files:
-            fileList.append(root + "/" + file)
+    class SingleOperations:
+        @staticmethod
+        def printAllMetadata(name):
+            timestamps = Metadata.getProjectfileTimestamps(name)
             
-    return fileList
-
-def compress_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        compress(path, args.verbose)
+            print "Project creation:     \t" + str(datetime.datetime.fromtimestamp(timestamps["creation"]))
+            print "Project last modified:\t" + str(datetime.datetime.fromtimestamp(timestamps["modification"]))
+            
+            for key, value in Metadata.getAnnotations(name).iteritems():
+                print "%s:\t\t%s" % (key, value)
         
-def test_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        test(path)
-
-def finecompress_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        finecompress(path, args.verbose)
-
-def decompress(path, verbose, keep = False):
-    log("Decompress "+path)
-    
-    archive = path+"/"+path+".tar.bz2"
-    audacity_data = path+"/"+path+"_data"
-    verbose_arg = "v" if verbose else ""
-    
-    if os.path.isfile(archive) == False:
-        raise CLIError("audio archive " + archive + " does not exist.")
-    
-    if os.path.isdir(audacity_data):
-        raise CLIError("audio data directory " + audacity_data + " does already exist. Will not overwrite existing files.")
-    
-    log(" Decompressing")
-    output = subprocess.check_output(["tar", "-xj"+verbose_arg+"f", archive, audacity_data])
-    log(output)
-    
-    if (keep is False):
-        log(" Deleting old data")
-        os.remove(archive)
-    
-def decompress_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        decompress(path, args.verbose)
-
-def finedecompress(path, verbose, overwrite = False):
-    log("FineDecompress "+path)
-    
-    audacity_data = path+"/"+path+"_data"
-    verbose_arg = "v" if verbose else ""
-    
-    filelist = getFilelist(audacity_data)
-    if any(s.endswith(".au") for s in filelist):
-        raise CLIError("existing .au file found during decompress")    
-    
-    log("Decompressing files")
-    for compressedfile in filter(lambda x: x.endswith(".bz2"), filelist):
-        log("Decompress "+compressedfile)
-        output = subprocess.check_output(["bzip2", "-dk"+verbose_arg, compressedfile])
-
-def finedecompress_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        finedecompress(path, args.verbose)
-
-def isCompressed(path):
-    archive = path+"/"+path+".tar.bz2"
-    return os.path.exists(archive)
-
-def getArchiveDate(archive):
-    return os.path.getmtime(archive)
-
-def getFileDate(file):
-    return os.stat(file).st_mtime
-
-def getDataDate(dataDirectory):
-    fileList = []
-    
-    for root, subFolders, files in os.walk(dataDirectory):
-        files = filter(lambda x: not os.path.isdir(x), files)
-        for file in files:
-            fileList.append(root + "/" + file)
+        @staticmethod
+        def printMetadata(name, key):
+            annotations = Metadata.getAnnotations(name)
+            if annotations.has_key(key):
+                print "%s: %s" % (key, annotations[key])
+            else:
+                print "%s: %s" % (key, "<NOT SET>")
+                        
+        @staticmethod
+        def setMetadata(name, key, value):
+            Metadata.setMetadata(name, key, value)
         
-    newest = max(fileList, key=lambda x: os.stat(x).st_mtime)
+        @staticmethod
+        def compress(name, verbose):
+            Compression.ArchiveCompression.compress(name, verbose, False)
+                  
+        @staticmethod
+        def decompress(name, verbose):
+            Compression.ArchiveCompression.decompress(name, verbose, False)
         
-    return os.stat(newest).st_mtime
+        @staticmethod
+        def finecompress(name, verbose):
+            Compression.FineCompression.finecompress(name, verbose)
         
+        @staticmethod
+        def finedecompress(name, verbose):
+            Compression.FineCompression.finedecompress(name, verbose)
+        
+        @staticmethod
+        def openproject(name, verbose):
+            Open.openproject(name, verbose)
+            
+        @staticmethod
+        def fineopenproject(name, verbose):
+            Open.fineopenproject(name, verbose)
+        
+        @staticmethod
+        def test(name):
+            None
+            
+    class BatchOperations:
+        def __init__(self):
+            None
 
-def openproject(path, verbose):
-    audacity_project = path+"/"+path+".aup"
-    audacity_data = path+"/"+path+"_data"
-    archive = path+"/"+path+".tar.bz2"
-    
-    if isCompressed(path):
-        decompress(path, verbose, keep=True)
-    
-    log(" Open")
-    process = subprocess.Popen(["audacity", audacity_project])
-    process.wait() # NOTE: switch to communicate() if wait() blocks the process because of a full pipe
-    
-    if getDataDate(audacity_data) > getArchiveDate(archive):
-        log(" Compress changed data files")
-        compress(path, verbose, overwrite=True)
-    else:
-        log(" Deleting unchanged data files")
-        shutil.rmtree(audacity_data)
+        @staticmethod
+        def printAllMetadata(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.printAllMetadata(name)
+                
+        @staticmethod
+        def printMetadata(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.printMetadata(name, args.key)
+                        
+        @staticmethod
+        def setMetadata(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.setMetadata(name, args.key, args.value)
+        
+        @staticmethod
+        def compress(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.compress(name, args.verbose)
 
-def openproject_cli(args):
-    for path in args.projects:
-        log("Processing "+path)
-        openproject(path, args.verbose)
+        @staticmethod
+        def decompress(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.decompress(name, args.verbose)
+                                        
+        @staticmethod
+        def finecompress(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.finecompress(name, args.verbose)
+        
+        @staticmethod
+        def finedecompress(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.finedecompress(name, args.verbose)
+        
+        @staticmethod
+        def openproject(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.openproject(name, args.verbose)
 
-def main(argv=None): # IGNORE:C0111
-    '''Command line options.'''
+        @staticmethod
+        def fineopenproject(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.fineopenproject(name, args.verbose)
+                
+        @staticmethod
+        def test(args):
+            for name in args.projects:
+                Logger.log("Processing "+name)
+                TextInterface.SingleOperations.test(name)
+
+
+    def setupParsers(self):
+        parser = ArgumentParser(description=Info.program_shortdesc, formatter_class=RawDescriptionHelpFormatter)
+        parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
+        parser.add_argument('-V', '--version', action='version', version=Info.program_version_message)
+        
+        subparsers = parser.add_subparsers(title='commands',
+                                           description='available commands to process projects')
+        
+        subparser = {}
+        
+        metadata_subparser = subparsers.add_parser('metadata', help='manage metadata')
+        metadata_subparsers = metadata_subparser.add_subparsers(title='commands',
+                                                              description='available commands to manage metadata')
+      
+        subparser['metadata_printAll'] = metadata_subparsers.add_parser('printAll', help='print all metadata of a project')
+        subparser['metadata_printAll'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['metadata_printAll'].set_defaults(func=TextInterface.BatchOperations.printAllMetadata)
+        
+        subparser['metadata_print'] = metadata_subparsers.add_parser('print', help='print specific metadata of a project')
+        subparser['metadata_print'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['metadata_print'].add_argument(dest="key", help="key to retrieve", metavar="key")
+        subparser['metadata_print'].set_defaults(func=TextInterface.BatchOperations.printMetadata)
+        
+        subparser['metadata_set'] = metadata_subparsers.add_parser('set', help='set specific metadata of a project')
+        subparser['metadata_set'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['metadata_set'].add_argument(dest="key", help="key to store", metavar="key")
+        subparser['metadata_set'].add_argument(dest="value", help="value to store in key", metavar="value")
+        subparser['metadata_set'].set_defaults(func=TextInterface.BatchOperations.setMetadata)
+        
+        subparser['compress'] = subparsers.add_parser('compress', help='compress audio files into archive')
+        subparser['compress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['compress'].set_defaults(func=TextInterface.BatchOperations.compress)
+        
+        subparser['decompress'] = subparsers.add_parser('decompress', help='decompress audio files from archive')
+        subparser['decompress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['decompress'].set_defaults(func=TextInterface.BatchOperations.decompress)
+
+        subparser['finecompress'] = subparsers.add_parser('finecompress', help='compress audio files')
+        subparser['finecompress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['finecompress'].set_defaults(func=TextInterface.BatchOperations.finecompress)
+        
+        subparser['finedecompress'] = subparsers.add_parser('finedecompress', help='decompress audio files')
+        subparser['finedecompress'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['finedecompress'].set_defaults(func=TextInterface.BatchOperations.finedecompress)
+
+        subparser['openproject'] = subparsers.add_parser('open', help='open audio project using audacity (from archive)')
+        subparser['openproject'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['openproject'].set_defaults(func=TextInterface.BatchOperations.openproject)
+
+        subparser['fineopenproject'] = subparsers.add_parser('fineopen', help='open audio project using audacity (fine per-file compression)')
+        subparser['fineopenproject'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['fineopenproject'].set_defaults(func=TextInterface.BatchOperations.fineopenproject)
+
+        subparser['test'] = subparsers.add_parser('test', help='test function')
+        subparser['test'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
+        subparser['test'].set_defaults(func=TextInterface.BatchOperations.test)
+
+        args = parser.parse_args()
+        args.func(args)
+
+    def main(self, argv=None): # IGNORE:C0111
+        '''Command line options.'''
+        
+        if argv is None:
+            argv = sys.argv
+        else:
+            sys.argv.extend(argv)
     
-    if argv is None:
-        argv = sys.argv
-    else:
-        sys.argv.extend(argv)
+        try:
+            parser = self.setupParsers()
+               
+            return 0
+        except KeyboardInterrupt:
+            ### handle keyboard interrupt ###
+            return 0
+        except Exception, e:
+            if DEBUG or TESTRUN:
+                raise(e)
+            indent = len(Info.program_name) * " "
+            sys.stderr.write(Info.program_name + ": " + repr(e) + "\n")
+            sys.stderr.write(indent + "  for help use --help")
+            return 2
 
+class Info:
     program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
     program_build_date = str(__updated__)
     program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
     program_shortdesc = "tool to process certain actions on audacity based audio projects"
 
-    try:
-        # Setup argument parser
-        parser = ArgumentParser(description=program_shortdesc, formatter_class=RawDescriptionHelpFormatter)
-        parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
-        parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        
-        subparsers = parser.add_subparsers(title='commands',
-                                           description='available commands to process projects')
-        
-        subparser = {}
-        subparser['openproject_cli'] = subparsers.add_parser('open', help='open audio project using audacity')
-        subparser['openproject_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['openproject_cli'].set_defaults(func=openproject_cli)
-
-        subparser['test_cli'] = subparsers.add_parser('test', help='test function')
-        subparser['test_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['test_cli'].set_defaults(func=test_cli)
-        
-        subparser['compress_cli'] = subparsers.add_parser('compress', help='compress audio files into archive')
-        subparser['compress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['compress_cli'].set_defaults(func=compress_cli)
-        
-        subparser['decompress_cli'] = subparsers.add_parser('decompress', help='decompress audio files from archive')
-        subparser['decompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['decompress_cli'].set_defaults(func=decompress_cli)
-
-        subparser['finecompress_cli'] = subparsers.add_parser('finecompress', help='compress audio files into archive')
-        subparser['finecompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['finecompress_cli'].set_defaults(func=finecompress_cli)
-        
-        subparser['finedecompress_cli'] = subparsers.add_parser('finedecompress', help='decompress audio files from archive')
-        subparser['finedecompress_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['finedecompress_cli'].set_defaults(func=finedecompress_cli)
-
-        subparser['printMetadata_cli'] = subparsers.add_parser('metadata_list', help='print metadata of a project')
-        subparser['printMetadata_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['printMetadata_cli'].set_defaults(func=printMetadata_cli)
-        
-        subparser['setMetadata_cli'] = subparsers.add_parser('metadata_set', help='set metadata of a project')
-        subparser['setMetadata_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['setMetadata_cli'].add_argument(dest="key", help="Key to store", metavar="key")
-        subparser['setMetadata_cli'].add_argument(dest="value", help="Value to store in Key", metavar="value")
-        subparser['setMetadata_cli'].set_defaults(func=setMetadata_cli)
-
-        subparser['getMetadata_cli'] = subparsers.add_parser('metadata_get', help='get metadata of a project')
-        subparser['getMetadata_cli'].add_argument(dest="projects", help="path(s) to folder(s) with audio project [default: %(default)s]", metavar="project", nargs='+')
-        subparser['getMetadata_cli'].add_argument(dest="key", help="Key to retrieve", metavar="key")
-        subparser['getMetadata_cli'].set_defaults(func=getMetadata_cli)
-
-        args = parser.parse_args()
-        args.func(args)
-   
-        return 0
-    except KeyboardInterrupt:
-        ### handle keyboard interrupt ###
-        return 0
-    except Exception, e:
-        if DEBUG or TESTRUN:
-            raise(e)
-        indent = len(program_name) * " "
-        sys.stderr.write(program_name + ": " + repr(e) + "\n")
-        sys.stderr.write(indent + "  for help use --help")
-        return 2
-
 if __name__ == "__main__":
+    textInterface = TextInterface()
+    
     if DEBUG:
         None
         #sys.argv.append("-v")
@@ -346,10 +254,10 @@ if __name__ == "__main__":
         import pstats
         profile_filename = '${module}_profile.txt'
         cProfile.run('main()', profile_filename)
-        statsfile = openproject_cli("profile_stats.txt", "wb")
+        statsfile = open("profile_stats.txt", "wb")
         p = pstats.Stats(profile_filename, stream=statsfile)
         stats = p.strip_dirs().sort_stats('cumulative')
         stats.print_stats()
         statsfile.close()
         sys.exit(0)
-    sys.exit(main())
+    sys.exit(textInterface.main())
