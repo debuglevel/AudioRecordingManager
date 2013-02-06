@@ -13,8 +13,8 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 0.1
-__updated__ = '2013-01-23'
+__version__ = 0.2
+__updated__ = '2013-02-06'
 
 DEBUG = 1
 TESTRUN = 0
