@@ -1,0 +1,1 @@
+pyuic4 audioRecordingManagerWindow.ui -o audioRecordingManagerWindow_auto.py
