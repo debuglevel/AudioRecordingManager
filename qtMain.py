@@ -1,5 +1,6 @@
 import sys
 import os
+import pprint
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -21,6 +22,15 @@ class ProjectsTableModel(QAbstractTableModel):
     def columnCount(self, parent):
         return len(Metadata.listUsedAnnotations(os.getcwd()))
 
+    def headerData(self, section, orientation, role = QtCore.Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            listUsedAnnotations = Metadata.listUsedAnnotations(os.getcwd())
+            key = listUsedAnnotations[section]
+    
+            return QVariant(key)
+        else:
+            return QVariant()
+
     def data(self, index, role):
         if not index.isValid():
             return QVariant()
@@ -29,7 +39,12 @@ class ProjectsTableModel(QAbstractTableModel):
         
         project = File.allProjects(os.getcwd())[index.row()]
         metadatakey = Metadata.listUsedAnnotations(os.getcwd())[index.column()]
-        metadatavalue = Metadata.getAnnotations(project)[metadatakey]
+        annotations = Metadata.getAnnotations(project)
+        if annotations.has_key(metadatakey):
+            metadatavalue = annotations[metadatakey]
+        else:
+            metadatavalue = "<NOT SET>"
+            
         return QVariant(metadatavalue)
 
 class StartQT4(QtGui.QMainWindow):
