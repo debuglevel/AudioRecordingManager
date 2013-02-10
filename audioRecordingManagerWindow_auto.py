@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'audioRecordingManagerWindow.ui'
 #
-# Created: Sun Feb 10 00:36:13 2013
+# Created: Sun Feb 10 01:14:43 2013
 #      by: PyQt4 UI code generator 4.9.3
 #
 # WARNING! All changes made in this file will be lost!
@@ -50,7 +50,6 @@ class Ui_AudioRecordingManagerWindow(object):
         AudioRecordingManagerWindow.setStatusBar(self.statusbar)
 
         self.retranslateUi(AudioRecordingManagerWindow)
-        QtCore.QObject.connect(self.newProjectButton, QtCore.SIGNAL(_fromUtf8("clicked()")), self.newProjectButton.click)
         QtCore.QMetaObject.connectSlotsByName(AudioRecordingManagerWindow)
 
     def retranslateUi(self, AudioRecordingManagerWindow):

@@ -5,7 +5,20 @@ from logic.logicError import LogicError
 class File:
     def __init__(self):
         None
+    
+    @staticmethod
+    def allProjects(rootDirectory):
+        filelist = []
         
+        folders = os.listdir(rootDirectory)
+        for folder in folders:
+            projectfile = File.projectfileFromName(folder)
+            metadatafile = File.metadatafileFromName(folder)
+            if os.path.isfile(projectfile) and os.path.isfile(metadatafile):
+                filelist.append(folder)
+                        
+        return filelist
+    
     @staticmethod
     def projectfileFromName(name):
         return "%s/%s.aup" %(name, name)

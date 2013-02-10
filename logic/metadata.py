@@ -9,6 +9,19 @@ class Metadata:
         None
     
     @staticmethod
+    def listUsedAnnotations(rootdirectory):
+        annotationlist = []
+        
+        projects = File.allProjects(rootdirectory)
+        for project in projects:
+            projectannotations = Metadata.getAnnotations(project)
+            for projectannotation in projectannotations:
+                if not projectannotation in annotationlist:
+                    annotationlist.append(projectannotation)
+        
+        return annotationlist
+    
+    @staticmethod
     def saveAnnotations(name, dict):
         metadatafile = File.metadatafileFromName(name)
         fp = open(metadatafile, mode='w')
