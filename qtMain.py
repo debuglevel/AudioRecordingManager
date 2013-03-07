@@ -23,11 +23,18 @@ class ProjectsTableModel(QAbstractTableModel):
         return len(Metadata.listUsedAnnotations(os.getcwd()))
 
     def headerData(self, section, orientation, role = QtCore.Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            listUsedAnnotations = Metadata.listUsedAnnotations(os.getcwd())
-            key = listUsedAnnotations[section]
-    
-            return QVariant(key)
+        if role == Qt.DisplayRole:
+            if orientation == Qt.Horizontal:
+                listUsedAnnotations = Metadata.listUsedAnnotations(os.getcwd())
+                key = listUsedAnnotations[section]
+            
+                return QString(key)
+            
+            elif orientation == Qt.Vertical:
+                project = File.allProjects(os.getcwd())[section]
+
+                return QVariant(project)
+            
         else:
             return QVariant()
 
