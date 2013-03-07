@@ -34,7 +34,7 @@ class ProjectsTableModel(QAbstractTableModel):
     def data(self, index, role):
         if not index.isValid():
             return QVariant()
-        elif role != Qt.DisplayRole:
+        elif role != Qt.DisplayRole and role != Qt.EditRole:
             return QVariant()
         
         project = File.allProjects(os.getcwd())[index.row()]
@@ -46,6 +46,29 @@ class ProjectsTableModel(QAbstractTableModel):
             metadatavalue = "<NOT SET>"
             
         return QVariant(metadatavalue)
+    
+    def setData(self, index, value, role=Qt.EditRole):
+        row = index.row()
+        col = index.column()
+        
+        project = File.allProjects(os.getcwd())[row]
+        metadatakey = Metadata.listUsedAnnotations(os.getcwd())[col]
+        value = str(value.toPyObject())
+        
+        Metadata.setMetadata(project, metadatakey, value)
+        
+        return True
+    
+    def flags(self, index):
+        flags = super(self.__class__,self).flags(index)
+
+        flags |= Qt.ItemIsEditable
+        flags |= Qt.ItemIsSelectable
+        flags |= Qt.ItemIsEnabled
+        flags |= Qt.ItemIsDragEnabled
+        flags |= Qt.ItemIsDropEnabled
+
+        return flags
 
 class StartQT4(QtGui.QMainWindow):
     def __init__(self, parent=None):
